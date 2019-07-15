@@ -5,47 +5,29 @@ require 'curb'
 require 'nokogiri'
 
 # 'https://www.petsonic.com/hobbit-half/'
-puts "Enter url"
+puts 'Enter url'
 url = gets.chomp
 puts 'Enter name of file'
 file = gets.chomp
 
-def getListOfGoods(link)
-  Nokogiri::HTML(Curl.get(link).body)
-          .css('div.pro_first_box a')
-rescue Curl::Err::MalformedURLError
-  # ignored
-rescue ArgumentError
-  # ignored
-end
+# pars site
+class Cast
+  def initialize(url_f, attr)
+    @link = url_f
+    @attr_reader = attr
+  end
 
-def pageFider(link)
-  Nokogiri::HTML(Curl.get(link).body).css('link[rel="next"]')
+  def getinfo
+    Nokogiri::HTML(Curl.get(@link).body)
+            .css(@attr_reader)
+  # 'div.pro_first_box a'
+  rescue Curl::Err::MalformedURLError
+    # ignored
+  rescue ArgumentError
+    # ignored
+  end
 end
-
-def getImg(link)
-  Nokogiri::HTML(Curl.get(link['href']).body)
-          .css('img[class="replace-2x img-responsive"]')
-end
-
-def getMass(link)
-  Nokogiri::HTML(Curl.get(link['href']).body)
-          .css('div.attribute_list span')
-          .css('span.radio_label')
-end
-
-def getName(link)
-  Nokogiri::HTML(Curl.get(link['href']).body)
-          .css('h1.product_main_name').text # name
-end
-
-def getPrice(link)
-  Nokogiri::HTML(Curl.get(link['href']).body)
-          .css('div.attribute_list span')
-          .css('span.price_comb')
-end
-
-def putInFile(img, mass, name, price, csv)
+def put_in_File(img, mass, name, price, csv)
   (0...mass.length).each do |i|
     csv << [format('%-73s %-16s | %9s| %s',
                    name,
@@ -58,28 +40,26 @@ def putInFile(img, mass, name, price, csv)
                    end)]
   end
 end
+
 CSV.open("#{file}.csv", 'wb') do |csv|
   csv << [format('%-73s %-16s | %-9s| %s', ' name', 'mass', ' price', 'img')]
   loop do
-    list = getListOfGoods(url)
-    if list.nil?
-      break
-    else
-      list.each do |element|
-        name = getName(element)
-        puts "Scanning... |#{name}"
-        mass = getMass(element)
-        price = getPrice(element)
-        img = getImg(element)
-        putInFile(img, mass, name, price, csv)
-      end
-      if !pageFider(url)[0].nil?
-        url = pageFider(url)[0]['href']
-      else
-        break
-      end
+    list = Cast.new(url, 'div.pro_first_box a').getinfo
+    puts "I fined page #{url} and will scan it \n Please be patient"
+    list.each do |element|
+      for_parse = element['href']
+      put_in_File(Cast.new(for_parse, 'img[class="replace-2x img-responsive"]').getinfo,
+            Cast.new(for_parse, 'span.radio_label').getinfo,
+            Cast.new(for_parse, 'h1.product_main_name').getinfo.text,
+            Cast.new(for_parse, 'span.price_comb').getinfo,
+            csv)
     end
-    break if url.nil?
+    if !Cast.new(url, 'link[rel="next"]').getinfo[0].nil?
+      url = Cast.new(url, 'link[rel="next"]').getinfo[0]['href']
+    else
+      break
+    end
   end
+  break if url.nil?
 end
 puts "The work was finished!!! Check #{file} file"
